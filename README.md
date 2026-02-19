@@ -80,9 +80,16 @@ npm start
 
 #### 一键启动 / Quick Start
 
+**Linux / macOS:**
 ```bash
-# 使用项目自带的启动脚本
 ./start.sh
+```
+
+**Windows:**
+```batch
+# 方法1: 双击 start.bat
+# 方法2: PowerShell（推荐）
+.\start.ps1
 ```
 
 ## 环境依赖 / Dependencies

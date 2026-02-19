@@ -273,7 +273,8 @@ class DataClient:
         lookback_days: int = 180,
         max_stocks: int = 200,
         progress_callback: Optional[Callable] = None,
-        start_offset: int = 0
+        start_offset: int = 0,
+        reset_flags: bool = False
     ) -> list:
         """
         筛选股票（带进度回调，支持暂停/取消）
@@ -283,11 +284,13 @@ class DataClient:
             max_stocks: 最多处理的股票数量（免费账户建议100-200）
             progress_callback: 进度回调函数，参数 (current, total, found)
             start_offset: 从第几只股票开始（用于分批筛选）
+            reset_flags: 是否重置控制标志（分批筛选时仅第一批重置）
 
         Returns:
             符合条件的股票列表
         """
-        reset_control_flags()  # 重置控制标志
+        if reset_flags:
+            reset_control_flags()  # 仅在第一批时重置控制标志
 
         end_date_obj = datetime.now()
         start_date_obj = end_date_obj - timedelta(days=lookback_days)
@@ -300,15 +303,16 @@ class DataClient:
         stock_list = self.get_stock_list()
         if stock_list.empty:
             if progress_callback:
-                progress_callback(0, 0, 0, "未获取到股票列表")
+                progress_callback(start_offset, start_offset, 0, "未获取到股票列表")
             return []
 
         # 使用 offset 和 limit 处理分批
         stock_list = stock_list.iloc[start_offset:start_offset + max_stocks]
-        total = len(stock_list)
+        batch_total = len(stock_list)
+        end_offset = start_offset + batch_total
 
         if progress_callback:
-            progress_callback(0, total, 0, f"开始筛选 {total} 只股票...")
+            progress_callback(start_offset, end_offset, 0, f"开始筛选 {batch_total} 只股票...")
 
         results = []
 
@@ -316,7 +320,7 @@ class DataClient:
             # 检查取消标志
             if _cancel_flag.is_set():
                 if progress_callback:
-                    progress_callback(idx, total, len(results), "已取消")
+                    progress_callback(start_offset + idx, end_offset, len(results), "已取消")
                 break
 
             # 检查暂停标志
@@ -360,19 +364,20 @@ class DataClient:
                     })
                     break  # 只取第一个符合条件的
 
-            # 进度回调
-            if progress_callback and (idx + 1) % 10 == 0:
+            # 进度回调 - 使用全局索引
+            global_idx = start_offset + idx
+            if progress_callback and (global_idx + 1) % 10 == 0:
                 status = f"正在处理: {ts_code} {name}"
-                progress_callback(idx + 1, total, len(results), status)
+                progress_callback(global_idx + 1, end_offset, len(results), status)
 
         # 按回落幅度排序
         results.sort(key=lambda x: x['drop_ratio'], reverse=True)
 
         if progress_callback:
             if _cancel_flag.is_set():
-                progress_callback(total, total, len(results), "已取消")
+                progress_callback(end_offset, end_offset, len(results), "已取消")
             else:
-                progress_callback(total, total, len(results), "筛选完成")
+                progress_callback(end_offset, end_offset, len(results), "筛选完成")
 
         return results
 

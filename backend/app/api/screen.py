@@ -115,14 +115,15 @@ def _run_batch_screen_task(
             with _progress_state["lock"]:
                 _progress_state["current_batch"] = current_batch
 
-            # Process this batch
+            # Process this batch - only reset flags on first batch
             batch_results = tushare_client.screen_stocks_progressive(
                 lookback_days=lookback_days,
-                max_stocks=end_idx - start_idx if screen_all else max_stocks,
+                max_stocks=end_idx - start_idx,
                 progress_callback=lambda c, t, f, s: _progress_callback(
-                    start_idx + c, total_stocks, len(all_results) + f, s
+                    c, total_stocks, len(all_results) + f, s
                 ),
-                start_offset=start_idx
+                start_offset=start_idx,
+                reset_flags=(batch_idx == 0)  # 仅第一批重置标志
             )
 
             all_results.extend(batch_results)
