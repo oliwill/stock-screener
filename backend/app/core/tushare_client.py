@@ -272,7 +272,8 @@ class DataClient:
         self,
         lookback_days: int = 180,
         max_stocks: int = 200,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
+        start_offset: int = 0
     ) -> list:
         """
         筛选股票（带进度回调，支持暂停/取消）
@@ -281,6 +282,7 @@ class DataClient:
             lookback_days: 回溯天数
             max_stocks: 最多处理的股票数量（免费账户建议100-200）
             progress_callback: 进度回调函数，参数 (current, total, found)
+            start_offset: 从第几只股票开始（用于分批筛选）
 
         Returns:
             符合条件的股票列表
@@ -301,8 +303,8 @@ class DataClient:
                 progress_callback(0, 0, 0, "未获取到股票列表")
             return []
 
-        # 限制处理数量
-        stock_list = stock_list.head(max_stocks)
+        # 使用 offset 和 limit 处理分批
+        stock_list = stock_list.iloc[start_offset:start_offset + max_stocks]
         total = len(stock_list)
 
         if progress_callback:
