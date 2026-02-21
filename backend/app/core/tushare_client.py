@@ -83,14 +83,24 @@ class DataClient:
             "last_trade_date": ""
         }
 
-    def get_stock_list(self, exclude_st: bool = True, min_list_days: int = 180) -> pd.DataFrame:
-        """获取股票列表，优先使用 AkShare（Tushare免费账户受限）"""
+    def get_stock_list(self, exclude_st: bool = True, min_list_days: int = 180, sector: str = None) -> pd.DataFrame:
+        """获取股票列表，优先使用 AkShare（Tushare免费账户受限）
+
+        Args:
+            exclude_st: 是否排除ST股票
+            min_list_days: 最小上市天数
+            sector: 板块名称（如"新能源"、"半导体"等）
+        """
 
         # 方法1: 使用 AkShare
         if AKSHARE_AVAILABLE:
             try:
-                # 获取A股实时行情数据
-                df = ak.stock_zh_a_spot_em()
+                if sector:
+                    # 按板块获取股票
+                    df = self._get_stocks_by_sector(sector)
+                else:
+                    # 获取A股实时行情数据
+                    df = ak.stock_zh_a_spot_em()
 
                 # 转换列名 - AkShare 的列名是中文
                 df = df.rename(columns={
@@ -119,10 +129,11 @@ class DataClient:
                 # 排除北交所
                 df = df[~df['ts_code'].str.endswith('.BJ')]
 
-                # 添加默认行业
-                df['industry'] = ''
+                # 添加板块/行业信息
+                if 'industry' not in df.columns:
+                    df['industry'] = sector if sector else ''
 
-                print(f"AkShare 获取到 {len(df)} 只股票")
+                print(f"AkShare 获取到 {len(df)} 只股票" + (f" (板块: {sector})" if sector else ""))
                 return df[['ts_code', 'name', 'industry']]
             except Exception as e:
                 print(f"AkShare 获取股票列表失败: {e}")
@@ -395,6 +406,95 @@ class DataClient:
             max_stocks=max_stocks,
             progress_callback=None
         )
+
+    def get_sector_list(self) -> list:
+        """获取板块列表（使用 AkShare）
+
+        Returns:
+            板块列表，每个元素包含板块名称和代码
+        """
+        if not AKSHARE_AVAILABLE:
+            return []
+
+        try:
+            sectors = []
+
+            # 获取申万行业分类
+            try:
+                df = ak.sw_index_cons(symbol="sw")
+                if df is not None and not df.empty:
+                    for idx, row in df.iterrows():
+                        sector_name = row.get('指数名称', row.get('name', ''))
+                        sector_code = row.get('指数代码', row.get('code', ''))
+                        if sector_name and '行业' in sector_name:
+                            # 简化名称
+                            name = sector_name.replace('申万-', '').replace('行业指数', '')
+                            sectors.append({
+                                'name': name,
+                                'code': sector_code,
+                                'type': 'sw'
+                            })
+            except Exception as e:
+                print(f"获取申万行业失败: {e}")
+
+            # 获取概念板块
+            try:
+                df = ak.stock_board_concept_name_em()
+                if df is not None and not df.empty:
+                    for idx, row in df.head(100).iterrows():
+                        sector_name = row.get('板块名称', '')
+                        if sector_name and len(sector_name) < 8:  # 过滤掉过长的名称
+                            sectors.append({
+                                'name': sector_name,
+                                'code': '',
+                                'type': 'concept'
+                            })
+            except Exception as e:
+                print(f"获取概念板块失败: {e}")
+
+            # 去重并排序
+            seen = set()
+            unique_sectors = []
+            for s in sectors:
+                key = s['name']
+                if key not in seen:
+                    seen.add(key)
+                    unique_sectors.append(s)
+
+            return sorted(unique_sectors, key=lambda x: x['name'])
+        except Exception as e:
+            print(f"获取板块列表失败: {e}")
+            return []
+
+    def _get_stocks_by_sector(self, sector_name: str) -> pd.DataFrame:
+        """根据板块名称获取股票列表
+
+        Args:
+            sector_name: 板块名称
+
+        Returns:
+            股票数据框
+        """
+        if not AKSHARE_AVAILABLE:
+            return pd.DataFrame()
+
+        try:
+            # 尝试从概念板块获取
+            df = ak.stock_board_concept_cons_em(symbol=sector_name)
+            if df is not None and not df.empty:
+                return df
+        except Exception as e:
+            print(f"从概念板块获取失败: {e}")
+
+        try:
+            # 尝试从行业板块获取
+            df = ak.stock_board_industry_cons_em(symbol=sector_name)
+            if df is not None and not df.empty:
+                return df
+        except Exception as e:
+            print(f"从行业板块获取失败: {e}")
+
+        return pd.DataFrame()
 
 
 # 全局实例

@@ -69,14 +69,22 @@ def _run_batch_screen_task(
     lookback_days: int,
     max_stocks: int,
     screen_all: bool = False,
-    batch_size: int = 500
+    batch_size: int = 500,
+    sector: str = ""
 ):
     """后台批量筛选任务"""
     global _progress_results
 
     try:
         # Get stock list first to determine batches
-        stock_list = tushare_client.get_stock_list()
+        stock_list = tushare_client.get_stock_list(sector=sector if sector else None)
+
+        if stock_list.empty:
+            with _progress_state["lock"]:
+                _progress_state["status"] = "完成"
+                _progress_state["error"] = "未获取到股票列表"
+            complete_task(task_id, "完成", found_count=0)
+            return
 
         if screen_all:
             total_stocks = len(stock_list)
@@ -90,6 +98,7 @@ def _run_batch_screen_task(
 
         with _progress_state["lock"]:
             _progress_state["total_batches"] = batches
+            _progress_state["total"] = total_stocks
             _progress_state["current_batch"] = 0
 
         for batch_idx in range(batches):
@@ -157,7 +166,8 @@ async def start_screen(
     lookback_days: int = Query(180, description="回溯天数"),
     max_stocks: int = Query(200, description="最多处理股票数"),
     screen_all: bool = Query(False, description="是否筛选全部股票"),
-    batch_size: int = Query(500, description="分批筛选时每批数量")
+    batch_size: int = Query(500, description="分批筛选时每批数量"),
+    sector: str = Query("", description="板块名称")
 ):
     """启动筛选任务
 
@@ -166,6 +176,7 @@ async def start_screen(
         max_stocks: 最多处理股票数（默认200），screen_all=True时忽略
         screen_all: 是否筛选全部A股（约4000+只）
         batch_size: 分批筛选时每批数量（默认500）
+        sector: 板块名称（可选）
     """
     with _progress_state["lock"]:
         if _progress_state["status"] == "running":
@@ -189,7 +200,7 @@ async def start_screen(
     # Start background thread
     thread = threading.Thread(
         target=_run_batch_screen_task,
-        args=(task_id, lookback_days, max_stocks, screen_all, batch_size)
+        args=(task_id, lookback_days, max_stocks, screen_all, batch_size, sector)
     )
     thread.daemon = True
     thread.start()
@@ -371,6 +382,20 @@ async def verify_token():
         return result
     except Exception as e:
         return {"valid": False, "message": str(e), "last_trade_date": ""}
+
+
+@router.get("/sectors")
+async def get_sectors():
+    """获取板块列表"""
+    try:
+        loop = asyncio.get_event_loop()
+        sectors = await loop.run_in_executor(
+            executor,
+            lambda: tushare_client.get_sector_list()
+        )
+        return {"sectors": sectors}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/health")

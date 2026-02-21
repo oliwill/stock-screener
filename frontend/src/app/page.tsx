@@ -80,6 +80,25 @@ export default function Home() {
   const [screenAll, setScreenAll] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [currentTaskResults, setCurrentTaskResults] = useState<StockInfo[]>([]);
+  const [sectors, setSectors] = useState<{name: string, code: string, type: string}[]>([]);
+  const [selectedSector, setSelectedSector] = useState<string>("");
+
+  // 获取所有板块
+  useEffect(() => {
+    const fetchSectors = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/sectors`);
+        if (res.ok) {
+          const data = await res.json();
+          setSectors(data.sectors);
+        }
+      } catch (err) {
+        console.error('Failed to fetch sectors:', err);
+      }
+    };
+
+    fetchSectors();
+  }, []);
 
   // 轮询进度
   useEffect(() => {
@@ -133,6 +152,9 @@ export default function Home() {
       url.searchParams.append('max_stocks', String(maxStocks));
       url.searchParams.append('screen_all', String(screenAll));
       url.searchParams.append('batch_size', '500');
+      if (selectedSector) {
+        url.searchParams.append('sector', selectedSector);
+      }
 
       const res = await fetch(url.toString(), { method: 'POST' });
       const data = await res.json();
@@ -237,7 +259,7 @@ export default function Home() {
                 <CardDescription>{t.filterDescription}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <Label htmlFor="lookback">{t.lookbackDays}: {lookbackDays[0]}{t.days}</Label>
                     <Slider
@@ -263,7 +285,9 @@ export default function Home() {
                       className="py-4"
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <Label htmlFor="maxStocks">
                       {locale === 'zh' ? '筛选数量' : 'Stocks'}: {screenAll ? (locale === 'zh' ? '全部' : 'All') : maxStocks}
@@ -278,6 +302,23 @@ export default function Home() {
                       className="py-4"
                       disabled={screenAll}
                     />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="sector">{locale === 'zh' ? '板块选择' : 'Sector'}: {selectedSector || (locale === 'zh' ? '全部' : 'All')}</Label>
+                    <select
+                      id="sector"
+                      value={selectedSector}
+                      onChange={(e) => setSelectedSector(e.target.value)}
+                      className="w-full py-3 px-3 border border-slate-200 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">{locale === 'zh' ? '全部' : 'All'}</option>
+                      {sectors.map((sector) => (
+                        <option key={sector.name} value={sector.name}>
+                          {sector.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

@@ -34,6 +34,7 @@ export function StockTable({ stocks, onSelect, selectedCode }: StockTableProps) 
           <tr className="border-b border-slate-200 dark:border-slate-700">
             <th className="text-left py-3 px-2 font-medium text-slate-700 dark:text-slate-300">代码</th>
             <th className="text-left py-3 px-2 font-medium text-slate-700 dark:text-slate-300">名称</th>
+            <th className="text-left py-3 px-2 font-medium text-slate-700 dark:text-slate-300">板块</th>
             <th className="text-right py-3 px-2 font-medium text-slate-700 dark:text-slate-300">启动价</th>
             <th className="text-right py-3 px-2 font-medium text-slate-700 dark:text-slate-300">现价</th>
             <th className="text-right py-3 px-2 font-medium text-slate-700 dark:text-slate-300">回落幅度</th>
@@ -52,6 +53,7 @@ export function StockTable({ stocks, onSelect, selectedCode }: StockTableProps) 
             >
               <td className="py-3 px-2 font-mono text-slate-600 dark:text-slate-400">{stock.ts_code}</td>
               <td className="py-3 px-2 font-medium text-slate-900 dark:text-slate-100">{stock.name}</td>
+              <td className="py-3 px-2 text-slate-600 dark:text-slate-400">{stock.industry || '-'}</td>
               <td className="py-3 px-2 text-right text-slate-700 dark:text-slate-300">
                 ¥{stock.start_price.toFixed(2)}
               </td>

@@ -11,7 +11,7 @@ import {
   Tooltip,
   ReferenceLine,
   Scatter,
-  ScatterPropType,
+  ScatterProps,
   Cell,
 } from "recharts";
 
